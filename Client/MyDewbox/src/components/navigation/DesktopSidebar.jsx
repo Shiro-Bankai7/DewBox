@@ -51,13 +51,13 @@ const DesktopSidebar = ({ isCollapsed = false, onToggleCollapse }) => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <img src={DMLogo} alt="COOPEX Logo" className="h-10 w-10" />
+              <img src={DMLogo} alt="MDBX logo" className="h-10 w-10" />
               <div className="flex flex-col">
                 <span className="text-lg font-bold text-[var(--color-text-primary)] leading-none">
                   COOPEX
                 </span>
                 <span className="text-xs text-[var(--color-text-secondary)] font-medium">
-                  my dewbox
+                  mydewbox
                 </span>
               </div>
             </motion.div>
@@ -66,7 +66,7 @@ const DesktopSidebar = ({ isCollapsed = false, onToggleCollapse }) => {
         {isCollapsed && (
           <motion.img
             src={DMLogo}
-            alt="Dewbox Logo"
+            alt="MDBX logo"
             className="h-10 w-10 mx-auto"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

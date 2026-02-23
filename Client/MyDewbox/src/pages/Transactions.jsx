@@ -53,7 +53,7 @@ const transferSchema = yup.object().shape({
 });
 
 const walletSchema = yup.object().shape({
-    email: yup.string().email("Invalid email format").required("Recipient email is required"),
+    walletId: yup.string().trim().required("Recipient wallet ID is required"),
     amount: yup.number()
         .typeError("Amount must be a number")
         .positive("Amount must be greater than 0")
@@ -176,7 +176,6 @@ const Transactions = () => {
         refetchOnMount: true,
         refetchOnWindowFocus: true,
         onError: (error) => {
-            console.error('Failed to fetch transactions:', error);
             if (error.response?.status === 401) {
                 toast.error('Session expired. Please login again.');
             }
@@ -260,7 +259,6 @@ const Transactions = () => {
                 toast.error(data?.message || 'Payment verification failed');
             }
         } catch (err) {
-            console.error('Verification error:', err);
             toast.error('Failed to verify payment');
         }
     };
@@ -291,7 +289,6 @@ const Transactions = () => {
             type: 'CONTRIBUTION'
         }),
         onSuccess: (response) => {
-            console.log('Deposit response:', response);
             
             const accessCode = response?.data?.access_code;
             const reference = response?.data?.reference;
@@ -301,7 +298,6 @@ const Transactions = () => {
                 const popup = new PaystackPop();
                 popup.resumeTransaction(accessCode, {
                     onSuccess: (transaction) => {
-                        console.log('Payment successful:', transaction);
                         verifyPayment(transaction.reference);
                     },
                     onCancel: () => {
@@ -309,12 +305,10 @@ const Transactions = () => {
                     }
                 });
             } else {
-                console.error('No access code in response:', response);
                 toast.error("Payment initialization failed. Please try again.");
             }
         },
         onError: (error) => {
-            console.error('Deposit error:', error);
             toast.error(error.response?.data?.message || "Failed to process deposit");
         }
     });
@@ -345,12 +339,26 @@ const Transactions = () => {
         onError: (error) => {
             const errorMessage = error.response?.data?.message || "Failed to process withdrawal";
             toast.error(errorMessage);
-            console.error('Withdrawal error:', error.response?.data);
         }
     });
 
     const transferMutation = useMutation({
         mutationFn: (data) => {
+            if (data?.isWalletTransfer) {
+                const normalizedWalletId = String(data.walletId || "")
+                    .trim()
+                    .toUpperCase()
+                    .replace(/\s+/g, "");
+                return apiService.createTransaction({
+                    type: 'WALLET',
+                    amount: data.amount,
+                    password: data.password,
+                    message: data.message,
+                    walletId: normalizedWalletId,
+                    recipientWalletId: normalizedWalletId
+                });
+            }
+
             // Get the selected bank details
             const selectedBank = banks?.data?.find(b => b.code === data.bank);
             
@@ -365,6 +373,21 @@ const Transactions = () => {
             });
         },
         onSuccess: (response, variables) => {
+            if (variables?.isWalletTransfer) {
+                toast.success(response.message || "Wallet transfer successful.");
+                queryClient.invalidateQueries(['transactions']);
+                queryClient.invalidateQueries(['subscriber']);
+                setSuccessData({
+                    walletId: response?.data?.recipientWalletId || variables?.walletId,
+                    amount: response?.data?.amount ?? variables?.amount,
+                    message: response?.data?.message ?? variables?.message,
+                    recipientName: response?.data?.recipientName
+                });
+                setShowSuccessScreen(true);
+                reset();
+                return;
+            }
+
             toast.success(response.message || "Transfer successful! Funds will be credited shortly.");
             queryClient.invalidateQueries(['transactions']);
             queryClient.invalidateQueries(['subscriber']);
@@ -375,7 +398,6 @@ const Transactions = () => {
         onError: (error) => {
             const errorMessage = error.response?.data?.message || "Failed to process transfer";
             toast.error(errorMessage);
-            console.error('Transfer error:', error.response?.data);
         }
     });
 
@@ -443,7 +465,6 @@ const Transactions = () => {
                 });
             }
         } catch (error) {
-            console.error('Auto-verify error:', error);
             const errorMessage = error.response?.data?.message || error.message;
             
             // Check if it's an API key issue
@@ -745,7 +766,7 @@ const Transactions = () => {
                                         <div className="bg-[var(--color-surface)] rounded-lg p-4 mb-6 space-y-2 text-left">
                                             <div className="flex justify-between">
                                                 <span className="text-[var(--color-text-secondary)]">Recipient:</span>
-                                                <span className="font-medium text-[var(--color-text-primary)]">{successData.email}</span>
+                                                <span className="font-medium text-[var(--color-text-primary)]">{successData.walletId}</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-[var(--color-text-secondary)]">Amount:</span>
@@ -800,11 +821,11 @@ const Transactions = () => {
                                     
                                     <div className="space-y-4">
                                         <Input
-                                            type="email"
-                                            label="Recipient Email"
-                                            placeholder="Enter recipient's email"
-                                            error={errors.email?.message}
-                                            {...register("email")}
+                                            type="text"
+                                            label="Recipient Wallet ID"
+                                            placeholder="MDBX-XXXX-XXXX-XXXX"
+                                            error={errors.walletId?.message}
+                                            {...register("walletId")}
                                         />
                                         <Input
                                             type="number"
@@ -864,7 +885,7 @@ const Transactions = () => {
                                     <div className="bg-[var(--color-surface)] rounded-lg p-4 space-y-2">
                                         <div className="flex justify-between">
                                             <span className="text-[var(--color-text-secondary)]">Recipient:</span>
-                                            <span className="font-medium text-[var(--color-text-primary)]">{confirmData.email}</span>
+                                            <span className="font-medium text-[var(--color-text-primary)]">{confirmData.walletId}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-[var(--color-text-secondary)]">Amount:</span>

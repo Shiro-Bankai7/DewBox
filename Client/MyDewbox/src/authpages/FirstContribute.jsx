@@ -64,6 +64,8 @@ const FirstContribute = () => {
   };
 
   const handleSkip = () => {
+    localStorage.setItem("pendingFirstContributionFeeNotice", "true");
+    toast.info("You can skip for now. A fee will be removed from your first contribution.");
     navigate("/dashboard");
   };
 
@@ -100,16 +102,16 @@ const FirstContribute = () => {
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                 <TrendingUp className="w-5 h-5" />
               </div>
-              <h1 className="text-2xl font-semibold">Start Saving Today</h1>
+              <h1 className="text-2xl font-semibold">Pay Your First Fee</h1>
             </div>
             <p className="text-ice-blue text-sm">
-              Make your first contribution and begin your financial journey
+              This is your onboarding fee payment. You can skip now and it will be removed from your first contribution.
             </p>
           </div>
 
           <div className="px-8 py-8">
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              Contribution Amount
+              Fee Amount
             </label>
             
             <div className="relative mb-6">
@@ -144,8 +146,11 @@ const FirstContribute = () => {
             </div>
 
             <div className="bg-ice-blue border border-sky-blue rounded-xl p-4 mb-6">
-              <p className="text-sm text-dark-navy">
-                <span className="font-medium">Secure Payment:</span> Your contribution is processed securely through Paystack
+              <p className="text-sm text-dark-navy mb-1">
+                <span className="font-medium">Secure Payment:</span> Your fee is processed securely through Paystack.
+              </p>
+              <p className="text-xs text-dark-navy/80">
+                If you skip now, the fee will be deducted from your first contribution.
               </p>
             </div>
 
@@ -160,9 +165,9 @@ const FirstContribute = () => {
                 icon={<ArrowRight size={18} />}
                 iconPosition="right"
               >
-                Continue to Payment
+                Pay Fee Now
               </Button>
-              
+               
               <button
                 onClick={handleSkip}
                 className="w-full py-3 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"

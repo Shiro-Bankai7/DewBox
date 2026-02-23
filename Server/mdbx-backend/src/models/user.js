@@ -68,21 +68,46 @@ class UserModel {
         return rows[0] || null;
     }
 
+    async getUsersByMobiles(mobiles = []) {
+        const uniqueMobiles = [...new Set(
+            (mobiles || [])
+                .map((m) => String(m || '').trim())
+                .filter(Boolean)
+        )];
+
+        if (!uniqueMobiles.length) return [];
+
+        const placeholders = uniqueMobiles.map(() => '?').join(', ');
+        const [rows] = await pool.query(
+            `SELECT * FROM user WHERE mobile IN (${placeholders})`,
+            uniqueMobiles
+        );
+        return rows;
+    }
+
     async findById(id) {
         const [rows] = await pool.query('SELECT * FROM user WHERE id = ?', [id]);
         return rows[0] || null;
     }
 
-    async updateProfile({ id, email, mobile, firstname, surname, city, state, country, address1, gender, dob, alternatePhone, currency, referral, referralPhone, nextOfKinName, nextOfKinContact }) {
-        // Update user table (only fields that exist)
-        await pool.query('UPDATE user SET email = ?, mobile = ? WHERE id = ?', [email, mobile, id]);
-        
-        // Get subscriber_id from user table
-        const [userRows] = await pool.query('SELECT subscriber_id FROM user WHERE id = ?', [id]);
+    async updatePasswordById(id, hashedPassword) {
+        await pool.query('UPDATE user SET password = ? WHERE id = ?', [hashedPassword, id]);
+    }
+
+    async updateProfile({ id, email, mobile, firstname, surname, city, state, country, address1, gender, dob, alternatePhone, currency, referral, referralPhone, nextOfKinName, nextOfKinContact, lga }) {
+        // Get current user + subscriber_id so partial updates don't clear existing values.
+        const [userRows] = await pool.query('SELECT subscriber_id, email, mobile FROM user WHERE id = ?', [id]);
         if (userRows.length === 0) {
             throw new Error('User not found');
         }
         const subscriberId = userRows[0].subscriber_id;
+        const currentEmail = userRows[0].email;
+        const currentMobile = userRows[0].mobile;
+
+        await pool.query('UPDATE user SET email = ?, mobile = ? WHERE id = ?', [email ?? currentEmail, mobile ?? currentMobile, id]);
+
+        const [subscriberRows] = await pool.query('SELECT * FROM subscribers WHERE id = ?', [subscriberId]);
+        const currentSubscriber = subscriberRows[0] || {};
         
         // Update subscribers table with all profile fields
         const dobFormatted = dob ? new Date(dob).toISOString().slice(0, 10) : null;
@@ -92,6 +117,7 @@ class UserModel {
                 surname = ?, 
                 city = ?, 
                 state = ?, 
+                lga = ?,
                 country = ?, 
                 address1 = ?, 
                 gender = ?,
@@ -103,7 +129,24 @@ class UserModel {
                 nextOfKinName = ?,
                 nextOfKinContact = ?
             WHERE id = ?`,
-            [firstname, surname, city, state, country, address1, gender, dobFormatted, alternatePhone, currency, referral, referralPhone, nextOfKinName, nextOfKinContact, subscriberId]
+            [
+                firstname ?? currentSubscriber.firstname ?? '',
+                surname ?? currentSubscriber.surname ?? '',
+                city ?? currentSubscriber.city ?? '',
+                state ?? currentSubscriber.state ?? '',
+                lga ?? currentSubscriber.lga ?? '',
+                country ?? currentSubscriber.country ?? '',
+                address1 ?? currentSubscriber.address1 ?? '',
+                gender ?? currentSubscriber.gender ?? '',
+                dobFormatted ?? currentSubscriber.dob ?? null,
+                alternatePhone ?? currentSubscriber.alternatePhone ?? '',
+                currency ?? currentSubscriber.currency ?? '',
+                referral ?? currentSubscriber.referral ?? '',
+                referralPhone ?? currentSubscriber.referralPhone ?? '',
+                nextOfKinName ?? currentSubscriber.nextOfKinName ?? '',
+                nextOfKinContact ?? currentSubscriber.nextOfKinContact ?? '',
+                subscriberId
+            ]
         );
     }
 }

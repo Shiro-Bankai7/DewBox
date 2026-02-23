@@ -5,16 +5,10 @@ const UserController = require('../controllers/userController');
 const router = express.Router();
 
 // Get validated user info for Home.jsx
-router.get('/me', verifyToken, (req, res, next) => {
-  console.log('[ROUTE] GET /users/me accessed by user:', req.user.id);
-  next();
-}, UserController.getMe);
+router.get('/me', verifyToken, UserController.getMe);
 
 // Get subscriber info for Profile.jsx (requires token)
-router.get('/subscriber', verifyToken, (req, res, next) => {
-  console.log('[ROUTE] GET /users/subscriber accessed by user:', req.user.id);
-  next();
-}, UserController.getSubscriber);
+router.get('/subscriber', verifyToken, UserController.getSubscriber);
 
 // Update user profile (for Profile.jsx)
 router.patch('/profile', verifyToken, (req, res, next) => {

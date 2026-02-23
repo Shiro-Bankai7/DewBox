@@ -83,14 +83,11 @@ export const apiCall = async (url, options = {}) => {
 
     return data;
   } catch (error) {
-    console.error('API Error:', error);
     throw error;
   }
 };
 
 // Log current environment and API URL
-console.log('🌍 Environment:', import.meta.env.MODE);
-console.log('🔗 API Base URL:', API_BASE_URL);
 
 export default {
   API_BASE_URL,

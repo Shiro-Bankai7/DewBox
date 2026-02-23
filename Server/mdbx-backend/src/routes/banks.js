@@ -5,6 +5,13 @@ const bankRouter = express.Router();
 
 bankRouter.get('/', async (req, res) => {
   try {
+    if (!process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY.includes('your_actual_live_key_here')) {
+      return res.status(503).json({
+        status: false,
+        message: 'Bank list service not configured. Please contact administrator.'
+      });
+    }
+
     const response = await axios.get('https://api.paystack.co/bank', {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
@@ -14,6 +21,14 @@ bankRouter.get('/', async (req, res) => {
     res.json(response.data);
   } catch (err) {
     console.error('Banks fetch error:', err.message);
+
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      return res.status(503).json({
+        status: false,
+        message: 'Bank list service authentication failed. Please contact administrator.'
+      });
+    }
+
     res.status(500).json({ 
       status: false,
       message: 'Failed to fetch banks from Paystack', 

@@ -1,5 +1,6 @@
 const pool = require('../db');
 const UserModel = require('../models/user');
+const { toPublicId } = require('../utils/publicId');
 
 const userModel = new UserModel();
 
@@ -32,26 +33,28 @@ const UserController = {
     async getSubscriber(req, res) {
         console.log('[GET /users/subscriber] Request received. User ID:', req.user.id);
         try {
-            // Get the user's subscriber_id and balance from the user table
-            const [userRows] = await pool.query('SELECT subscriber_id, balance FROM user WHERE id = ?', [req.user.id]);
-            if (!userRows.length) {
-                return res.status(404).json({ message: 'User not found.' });
-            }
-            const subscriberId = userRows[0].subscriber_id;
-            const balance = userRows[0].balance;
-            
-            // Now fetch the subscriber by id (including contribution balances)
             const [rows] = await pool.query(
-                `SELECT id, firstname, surname, address1, country, state, dob, mobile, alternatePhone, 
-                 currency, referral, referralPhone, nextOfKinName, nextOfKinContact, city, gender, userId,
-                 contribution_mode, ica_balance, piggy_balance 
-                 FROM subscribers WHERE id = ?`, 
-                [subscriberId]
+                `SELECT 
+                    s.id, s.firstname, s.surname, s.address1, s.country, s.state, s.lga, s.dob,
+                    s.mobile, s.alternatePhone, s.currency, s.referral, s.referralPhone,
+                    s.nextOfKinName, s.nextOfKinContact, s.city, s.gender, s.userId, s.joinEsusu,
+                    s.contribution_mode, s.ica_balance, s.piggy_balance, s.createdAt,
+                    u.email, u.balance
+                 FROM user u
+                 LEFT JOIN subscribers s ON u.subscriber_id = s.id
+                 WHERE u.id = ?`,
+                [req.user.id]
             );
             if (!rows.length) {
                 return res.status(404).json({ message: 'Subscriber not found.' });
             }
-            const subscriber = { ...rows[0], balance }; // Add balance to subscriber object
+            if (!rows[0].id) {
+                return res.status(404).json({ message: 'Subscriber not linked to this user.' });
+            }
+            const subscriber = {
+                ...rows[0],
+                publicId: toPublicId(`${req.user.id}:${rows[0].id}`),
+            };
             res.status(200).json({ subscriber });
         } catch (error) {
             console.error('[GET /users/subscriber] Error:', error);
@@ -72,11 +75,23 @@ const UserController = {
             // Fetch updated subscriber info
             const [userRows] = await pool.query('SELECT subscriber_id FROM user WHERE id = ?', [req.user.id]);
             const subscriberId = userRows[0]?.subscriber_id;
-            const [subscriberRows] = await pool.query('SELECT * FROM subscribers WHERE id = ?', [subscriberId]);
+            const [subscriberRows] = await pool.query(
+                `SELECT s.*, u.email, u.balance
+                 FROM subscribers s
+                 LEFT JOIN user u ON u.subscriber_id = s.id
+                 WHERE s.id = ?`,
+                [subscriberId]
+            );
+            const subscriber = subscriberRows[0]
+                ? {
+                    ...subscriberRows[0],
+                    publicId: toPublicId(`${req.user.id}:${subscriberRows[0].id}`),
+                }
+                : null;
             
             res.json({ 
                 message: 'Profile updated successfully',
-                subscriber: subscriberRows[0]
+                subscriber
             });
         } catch (err) {
             console.error('[PATCH /users/profile] Error:', err);

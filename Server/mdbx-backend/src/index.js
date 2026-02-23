@@ -9,8 +9,10 @@ const bankRoutes = require('./routes/banks');
 const errorHandler = require('./middleware/errorHandler');
 const pool = require('./db');
 const { initializeContributionCron } = require('./services/contributionCron');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // ✅ SECURITY: Add security headers with helmet
 app.use(helmet({
@@ -47,7 +49,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '200kb' }));
+app.use(apiLimiter);
 
 const contributionRoutes = require('./routes/contributions');
 const adminRoutes = require('./routes/admin');

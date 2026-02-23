@@ -5,18 +5,18 @@ class Subscriber {
     const {
       firstname, surname, othername, address1, city, state, country,
       dob, gender, mobile, alternatePhone, currency, password,
-      referral, referralPhone, nextOfKinName, nextOfKinContact, userId
+      referral, referralPhone, nextOfKinName, nextOfKinContact, userId, lga
     } = subscriberData;
 
     const [result] = await db.query(
       `INSERT INTO subscribers 
-      (firstname, surname, othername, address1, city, state, country, dob, gender, 
-       mobile, alternatePhone, currency, password, referral, referralPhone, 
-       nextOfKinName, nextOfKinContact, userId)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, surname, othername, address1, city, state, country, dob, gender, 
+        mobile, alternatePhone, currency, password, referral, referralPhone, 
+        nextOfKinName, nextOfKinContact, userId, lga)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [firstname, surname, othername, address1, city, state, country, dob, gender,
        mobile, alternatePhone, currency, password, referral, referralPhone,
-       nextOfKinName, nextOfKinContact, userId]
+       nextOfKinName, nextOfKinContact, userId, lga || null]
     );
 
     return result.insertId;

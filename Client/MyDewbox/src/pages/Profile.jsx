@@ -1,377 +1,325 @@
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "react-toastify";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { 
-  User, Mail, Phone, MapPin, Save, Calendar, Upload, 
-  Shield, Bell, Settings, LogOut, Moon, Sun, Lock
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-toastify";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Bell,
+  ChevronRight,
+  CircleHelp,
+  Coins,
+  Edit3,
+  EyeOff,
+  LogOut,
+  Megaphone,
+  Moon,
+  ReceiptText,
+  Save,
+  Settings,
+  Shield,
+  Sun,
+  Wallet,
+  X,
 } from "lucide-react";
 import { apiService } from "../services/api";
-import Input from "../components/ui/Input";
-import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
-import Toggle from "../components/ui/Toggle";
+import Button from "../components/ui/Button";
 import Skeleton from "../components/ui/Skeleton";
 import { useAuthStore } from "../store/authstore";
 import { useThemeStore } from "../store/themeStore";
 import { useSettingsStore } from "../store/settingsStore";
+import { formatPublicId } from "../utils/publicId";
 
-const schema = yup.object().shape({
-  firstname: yup.string().required("First name is required"),
-  surname: yup.string().required("Surname is required"),
-  mobile: yup.string().required("Mobile is required"),
-  address1: yup.string(),
-  country: yup.string(),
-  state: yup.string(),
-  dob: yup.string(),
-  alternatePhone: yup.string(),
-  currency: yup.string(),
-  referral: yup.string(),
-  referralPhone: yup.string(),
-  nextOfKinName: yup.string(),
-  nextOfKinContact: yup.string(),
-  city: yup.string(),
-  gender: yup.string(),
-  lga: yup.string(),
-});
+const formatNaira = (amount) =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 0,
+  }).format(amount || 0);
+
+const INITIAL_EDIT_FORM = {
+  firstname: "",
+  surname: "",
+  email: "",
+  mobile: "",
+  city: "",
+  state: "",
+  lga: "",
+  country: "",
+  address1: "",
+};
+
+const Switch = ({ checked, onClick, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-label={label}
+    aria-checked={checked}
+    onClick={(event) => {
+      event.stopPropagation();
+      onClick();
+    }}
+    className={`relative inline-flex h-9 w-16 rounded-full border transition-colors duration-150 ${
+      checked
+        ? "bg-[var(--color-primary)] border-[var(--color-primary)]"
+        : "bg-[var(--color-surface)] border-[var(--color-text-tertiary)]"
+    }`}
+  >
+    <span
+      className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow-sm transition-transform duration-150 ${
+        checked ? "translate-x-8" : "translate-x-1"
+      }`}
+    />
+  </button>
+);
+
+const MobileRow = ({ icon: Icon, title, subtitle, badge, withBorder = true, onClick, rightNode }) => {
+  const isInteractive = typeof onClick === "function";
+  const hasRightNode = Boolean(rightNode);
+  const className = `w-full flex items-center gap-3 px-4 py-4 ${withBorder ? "border-b border-[var(--color-border)]" : ""}`;
+
+  const handleKeyDown = (event) => {
+    if (!isInteractive) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
+  const content = (
+    <>
+      <Icon className="text-[var(--color-text-primary)] shrink-0" size={22} />
+      <div className="flex-1 text-left min-w-0">
+        <p className="text-base font-medium leading-tight text-[var(--color-text-primary)]">{title}</p>
+        {subtitle && <p className="text-xs mt-0.5 text-[var(--color-text-secondary)] truncate">{subtitle}</p>}
+      </div>
+      {badge && (
+        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+          {badge}
+        </span>
+      )}
+      {rightNode || <ChevronRight className="text-[var(--color-text-tertiary)] shrink-0" size={20} />}
+    </>
+  );
+
+  if (hasRightNode) {
+    return (
+      <div
+        role={isInteractive ? "button" : undefined}
+        tabIndex={isInteractive ? 0 : undefined}
+        onClick={isInteractive ? onClick : undefined}
+        onKeyDown={handleKeyDown}
+        className={className}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  if (!isInteractive) {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
+  );
+};
+
+const EditField = ({ label, value, onChange, name, type = "text", placeholder = "", fullWidth = false }) => (
+  <label className={`flex flex-col gap-1 ${fullWidth ? "sm:col-span-2" : ""}`}>
+    <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">{label}</span>
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary)]"
+    />
+  </label>
+);
+
+const ProfileSkeleton = () => (
+  <section className="max-w-5xl mx-auto p-4 sm:p-6 space-y-4">
+    <div className="flex justify-between items-center">
+      <Skeleton width="120px" height="34px" />
+      <Skeleton width="44px" height="44px" className="rounded-full" />
+    </div>
+    <Card variant="elevated" padding="md">
+      <div className="flex items-center gap-3">
+        <Skeleton width="56px" height="56px" className="rounded-full" />
+        <div className="flex-1">
+          <Skeleton width="180px" height="22px" className="mb-2" />
+          <Skeleton width="220px" height="16px" />
+        </div>
+      </div>
+    </Card>
+    <Card variant="elevated" padding="md">
+      <Skeleton width="100%" height="90px" className="rounded-xl" />
+    </Card>
+    <Card variant="elevated" padding="none">
+      <Skeleton width="100%" height="180px" />
+    </Card>
+  </section>
+);
 
 const Profile = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
-  const { 
-    twoFactorEnabled, 
-    biometricEnabled, 
-    sessionTimeout, 
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editForm, setEditForm] = useState(INITIAL_EDIT_FORM);
+
+  const {
+    twoFactorEnabled,
+    hideBalanceByDefault,
     loginNotifications,
-    emailNotifications,
-    pushNotifications,
-    smsNotifications,
     transactionAlerts,
     marketingEmails,
     securityAlerts,
-    updateSetting 
+    updateSetting,
   } = useSettingsStore();
 
-  // Location state
-  const [selectedCountry, setSelectedCountry] = useState('');
-  const [selectedState, setSelectedState] = useState('');
-
-  // Fetch countries
-  const { data: countriesData } = useQuery({
-    queryKey: ['countries'],
-    queryFn: () => apiService.getCountries(),
-    staleTime: Infinity, // Countries don't change often
-  });
-
-  // Fetch states when country is selected
-  const { data: statesData } = useQuery({
-    queryKey: ['states', selectedCountry],
-    queryFn: () => apiService.getStates(selectedCountry),
-    enabled: !!selectedCountry,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-  });
-
-  // Fetch LGAs when state is selected
-  const { data: lgasData } = useQuery({
-    queryKey: ['lgas', selectedCountry, selectedState],
-    queryFn: () => apiService.getLGAs(selectedCountry, selectedState),
-    enabled: !!selectedCountry && !!selectedState,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-  });
-
-  // Fetch subscriber info
-  const { data: subscriberData, isLoading, error, isFetching } = useQuery({
-    queryKey: ['subscriber'],
+  const { data: subscriberData, isLoading, isFetching, error } = useQuery({
+    queryKey: ["subscriber"],
     queryFn: () => apiService.getSubscriber(),
     retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
-  // Debug logging removed for production security
+  const subscriber = subscriberData?.data?.subscriber || subscriberData?.subscriber;
 
-  // Memoize default values to prevent unnecessary re-renders
-  const defaultValues = useMemo(() => {
-    if (!subscriberData?.data?.subscriber || Object.keys(subscriberData.data.subscriber).length === 0) return {};
-    
-    const subscriber = subscriberData.data.subscriber;
-    return {
-      firstname: subscriber.firstname || '',
-      surname: subscriber.surname || '',
-      mobile: subscriber.mobile || '',
-      email: subscriber.email || '',
-      address1: subscriber.address1 || '',
-      country: subscriber.country || '',
-      state: subscriber.state || '',
-      dob: subscriber.dob ? new Date(subscriber.dob).toISOString().split('T')[0] : '',
-      alternatePhone: subscriber.alternatePhone || '',
-      currency: subscriber.currency || '',
-      referral: subscriber.referral || '',
-      referralPhone: subscriber.referralPhone || '',
-      nextOfKinName: subscriber.nextOfKinName || '',
-      nextOfKinContact: subscriber.nextOfKinContact || '',
-      city: subscriber.city || '',
-      gender: subscriber.gender || '',
-      lga: subscriber.lga || '',
-    };
-  }, [subscriberData]);
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-    reset,
-  } = useForm({
-    resolver: yupResolver(schema),
-    defaultValues,
-  });
-
-  // Reset form when subscriber data changes
   useEffect(() => {
-    const hasValidData = subscriberData?.data?.subscriber && Object.keys(subscriberData.data.subscriber).length > 0;
-    if (hasValidData) {
-      const subscriber = subscriberData.data.subscriber;
-      reset(defaultValues);
-      // Set location state for dropdowns
-      if (subscriber.country) setSelectedCountry(subscriber.country);
-      if (subscriber.state) setSelectedState(subscriber.state);
-    }
-  }, [subscriberData, defaultValues, reset]);
+    if (!subscriber) return;
+    setEditForm({
+      firstname: subscriber.firstname || "",
+      surname: subscriber.surname || "",
+      email: subscriber.email || "",
+      mobile: subscriber.mobile || "",
+      city: subscriber.city || "",
+      state: subscriber.state || "",
+      lga: subscriber.lga || "",
+      country: subscriber.country || "",
+      address1: subscriber.address1 || "",
+    });
+  }, [subscriber]);
 
-  const mutation = useMutation({
-    mutationFn: (data) => apiService.updateProfile(data),
+  const updateProfileMutation = useMutation({
+    mutationFn: (payload) => apiService.updateProfile(payload),
     onSuccess: (response) => {
-      // Show success toast notification
-      toast.success("Profile updated successfully!");
-      
-      // Reset form with updated data if available
-      if (response?.data?.subscriber) {
-        const updatedSubscriber = response.data.subscriber;
-        reset({
-          firstname: updatedSubscriber.firstname || '',
-          surname: updatedSubscriber.surname || '',
-          mobile: updatedSubscriber.mobile || '',
-          address1: updatedSubscriber.address1 || '',
-          country: updatedSubscriber.country || '',
-          state: updatedSubscriber.state || '',
-          dob: updatedSubscriber.dob ? new Date(updatedSubscriber.dob).toISOString().split('T')[0] : '',
-          alternatePhone: updatedSubscriber.alternatePhone || '',
-          currency: updatedSubscriber.currency || '',
-          referral: updatedSubscriber.referral || '',
-          referralPhone: updatedSubscriber.referralPhone || '',
-          nextOfKinName: updatedSubscriber.nextOfKinName || '',
-          nextOfKinContact: updatedSubscriber.nextOfKinContact || '',
-          city: updatedSubscriber.city || '',
-          gender: updatedSubscriber.gender || '',
-          email: updatedSubscriber.email || '',
+      const updatedSubscriber = response?.data?.subscriber || response?.subscriber;
+      if (updatedSubscriber) {
+        queryClient.setQueryData(["subscriber"], (previous) => {
+          const previousPayload = previous?.data || {};
+          const previousSubscriber = previousPayload?.subscriber || {};
+          return {
+            ...(previous || {}),
+            data: {
+              ...previousPayload,
+              subscriber: {
+                ...previousSubscriber,
+                ...updatedSubscriber,
+              },
+            },
+          };
         });
       }
+
+      queryClient.invalidateQueries({ queryKey: ["subscriber"] });
+      toast.success("Profile updated successfully");
+      setIsEditProfileOpen(false);
     },
-    onError: (error) => {
-      // Handle error states with error messages
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          "Error updating profile";
-      toast.error(errorMessage);
-    }
+    onError: (mutationError) => {
+      const message =
+        mutationError?.response?.data?.message ||
+        mutationError?.message ||
+        "Failed to update profile";
+      toast.error(message);
+    },
   });
 
-  const onSubmit = (data) => {
-    // Clean data before submission
-    const cleanData = Object.entries(data).reduce((acc, [key, value]) => {
-      acc[key] = value || '';
-      return acc;
-    }, {});
-    
-    mutation.mutate(cleanData);
-  };
+  const profile = useMemo(() => {
+    if (!subscriber) {
+      return {
+        fullName: "User",
+        initials: "U",
+        email: "No email available",
+        profileImage: "",
+        memberSince: "N/A",
+        walletBalance: 0,
+        icaBalance: 0,
+        piggyBalance: 0,
+        referral: "",
+        memberId: "N/A",
+      };
+    }
+
+    const first = subscriber.firstname || "";
+    const last = subscriber.surname || "";
+    return {
+      fullName: `${first} ${last}`.trim() || "User",
+      initials: `${first[0] || ""}${last[0] || ""}`.toUpperCase() || "U",
+      email: subscriber.email || "No email available",
+      profileImage: subscriber.profileImage || "",
+      memberSince: subscriber.createdAt
+        ? new Date(subscriber.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long" })
+        : "N/A",
+      walletBalance: Number.parseFloat(subscriber.balance) || 0,
+      icaBalance: Number.parseFloat(subscriber.ica_balance) || 0,
+      piggyBalance: Number.parseFloat(subscriber.piggy_balance) || 0,
+      referral: subscriber.referral || "",
+      memberId: formatPublicId(subscriber.id, subscriber.publicId || subscriber.public_id),
+    };
+  }, [subscriber]);
 
   const handleSignOut = () => {
-    // Clear auth token
-    localStorage.removeItem('token');
-    // Clear auth state
+    localStorage.removeItem("token");
     logout();
-    // Show success message
-    toast.success('Signed out successfully');
-    // Redirect to sign in page
-    navigate('/signin');
+    toast.success("Signed out successfully");
+    navigate("/signin");
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleEditChange = (event) => {
+    const { name, value } = event.target;
+    setEditForm((previous) => ({ ...previous, [name]: value }));
+  };
 
-    // Validate file type (images only)
-    const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validImageTypes.includes(file.type)) {
-      toast.error('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
+  const handleEditSubmit = (event) => {
+    event.preventDefault();
+    const payload = {
+      firstname: editForm.firstname.trim(),
+      surname: editForm.surname.trim(),
+      email: editForm.email.trim(),
+      mobile: editForm.mobile.trim(),
+      city: editForm.city.trim(),
+      state: editForm.state.trim(),
+      lga: editForm.lga.trim(),
+      country: editForm.country.trim(),
+      address1: editForm.address1.trim(),
+    };
+
+    if (!payload.firstname || !payload.surname) {
+      toast.error("First name and surname are required");
       return;
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-    if (file.size > maxSize) {
-      toast.error('Image size should be less than 5MB');
-      return;
-    }
-
-    // Convert image to base64 for API submission
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const imageDataUrl = event.target?.result;
-      if (imageDataUrl) {
-        // Set form value for submission
-        setValue("profileImage", imageDataUrl);
-        
-        // Update image preview
-        const imgElement = document.getElementById("profileImage");
-        if (imgElement) {
-          imgElement.src = imageDataUrl;
-        }
-        
-        // Show success message
-        toast.success('Image uploaded successfully');
-      }
-    };
-    reader.onerror = () => {
-      // Display error messages for invalid files
-      toast.error('Error reading image file. Please try again.');
-    };
-    reader.readAsDataURL(file);
+    updateProfileMutation.mutate(payload);
   };
 
-  // Define form fields organized by sections
-  const formSections = [
-    {
-      title: 'Personal Information',
-      fields: [
-        { name: 'firstname', icon: <User size={20} />, label: 'First Name', type: 'text', required: true },
-        { name: 'surname', icon: <User size={20} />, label: 'Surname', type: 'text', required: true },
-        { name: 'gender', icon: <User size={20} />, label: 'Gender', type: 'text', required: false },
-        { name: 'dob', icon: <Calendar size={20} />, label: 'Date of Birth', type: 'date', required: false },
-      ]
-    },
-    {
-      title: 'Contact Details',
-      fields: [
-        { name: 'mobile', icon: <Phone size={20} />, label: 'Mobile', type: 'text', required: true },
-        { name: 'alternatePhone', icon: <Phone size={20} />, label: 'Alternate Phone', type: 'text', required: false },
-        { name: 'email', icon: <Mail size={20} />, label: 'Email', type: 'email', required: false, disabled: true },
-      ]
-    },
-    {
-      title: 'Address',
-      fields: [
-        { name: 'address1', icon: <MapPin size={20} />, label: 'Address', type: 'text', required: false },
-        { name: 'city', icon: <MapPin size={20} />, label: 'City', type: 'text', required: false },
-        { name: 'country', icon: <MapPin size={20} />, label: 'Country', type: 'select', required: false, options: 'countries' },
-        { name: 'state', icon: <MapPin size={20} />, label: 'State', type: 'select', required: false, options: 'states' },
-        { name: 'lga', icon: <MapPin size={20} />, label: 'LGA', type: 'select', required: false, options: 'lgas' },
-      ]
-    },
-    {
-      title: 'Emergency Contact',
-      fields: [
-        { name: 'nextOfKinName', icon: <User size={20} />, label: 'Next of Kin Name', type: 'text', required: false },
-        { name: 'nextOfKinContact', icon: <Phone size={20} />, label: 'Next of Kin Contact', type: 'text', required: false },
-      ]
-    },
-    {
-      title: 'Referral',
-      fields: [
-        { name: 'referral', icon: <User size={20} />, label: 'Referral Code', type: 'text', required: false },
-        { name: 'referralPhone', icon: <Phone size={20} />, label: 'Referral Phone', type: 'text', required: false },
-        { name: 'currency', icon: <User size={20} />, label: 'Currency', type: 'text', required: false },
-      ]
-    }
-  ];
-
-  // Profile skeleton loader component
-  const ProfileSkeleton = () => (
-    <motion.section
-      className="max-w-4xl mx-auto p-4 sm:p-6 w-full"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-    >
-      {/* Header Card Skeleton */}
-      <Card variant="elevated" padding="none" className="overflow-hidden mb-6">
-        <div className="relative h-24 bg-[var(--color-surface-elevated)] animate-pulse">
-          <div className="absolute -bottom-12 left-6">
-            <Skeleton shape="square" width="96px" height="96px" className="border-4 border-[var(--color-surface)] rounded-lg" />
-          </div>
-        </div>
-        <div className="pt-16 px-6 pb-6">
-          <Skeleton width="200px" height="32px" className="mb-1" />
-          <Skeleton width="180px" height="20px" />
-        </div>
-      </Card>
-      
-      {/* Form Card Skeleton */}
-      <Card variant="elevated" padding="lg" className="mb-6">
-        <div className="space-y-6">
-          {[1, 2, 3].map((section) => (
-            <div key={section} className="space-y-4">
-              <Skeleton width="150px" height="20px" className="mb-4" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[1, 2].map((field) => (
-                  <div key={field}>
-                    <Skeleton width="100px" height="16px" className="mb-2" />
-                    <Skeleton width="100%" height="48px" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          <Skeleton width="100%" height="52px" className="rounded-lg" />
-        </div>
-      </Card>
-      
-      {/* Settings Cards Skeleton */}
-      <div className="space-y-4">
-        {[1, 2, 3].map((card) => (
-          <Card key={card} variant="elevated" padding="lg">
-            <div className="flex items-center gap-2 mb-4">
-              <Skeleton shape="square" width="32px" height="32px" className="rounded-lg" />
-              <Skeleton width="150px" height="20px" />
-            </div>
-            <div className="space-y-4">
-              {[1, 2].map((toggle) => (
-                <div key={toggle} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <Skeleton width="180px" height="16px" className="mb-1" />
-                    <Skeleton width="250px" height="14px" />
-                  </div>
-                  <Skeleton width="44px" height="24px" className="rounded-full" />
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))}
-      </div>
-    </motion.section>
-  );
-
-  // Handle loading state - wait until we actually have valid subscriber data
-  const hasValidSubscriberData = subscriberData?.data?.subscriber && Object.keys(subscriberData.data.subscriber).length > 0;
-  
-  if (isLoading || isFetching || !hasValidSubscriberData) {
+  if (isLoading || isFetching) {
     return <ProfileSkeleton />;
   }
 
-  // Handle error state
-  if (error) {
+  if (error || !subscriber) {
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
         <p className="text-red-600">Error loading profile data</p>
         <p className="text-sm text-[var(--color-text-secondary)]">Please try again</p>
-        <button 
+        <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-hover)] transition-all duration-150 shadow-sm"
         >
@@ -381,346 +329,327 @@ const Profile = () => {
     );
   }
 
-  // Handle no data state
-  if (!subscriberData?.data?.subscriber || Object.keys(subscriberData.data.subscriber).length === 0) {
-    return (
-      <div className="flex flex-col justify-center items-center h-64 space-y-4">
-        <p className="text-[var(--color-text-secondary)]">No profile data found</p>
-        <p className="text-sm text-[var(--color-text-tertiary)]">Please try refreshing the page</p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-hover)] transition-all duration-150 shadow-sm"
-        >
-          Refresh
-        </button>
-      </div>
-    );
-  }
-
-  const subscriber = subscriberData.data.subscriber;
-
   return (
-    <motion.section
-      className="max-w-4xl mx-auto p-4 sm:p-6 w-full"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-    >
-      {/* Profile Header Card - Clean & Professional */}
-      <Card variant="elevated" padding="none" className="overflow-hidden mb-6">
-        {/* Cover Section - Clean solid color, 96px height */}
-        <div className="relative h-24 bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-hover)]">
-          {/* Avatar - 96px circle with clean border */}
-          <div className="absolute -bottom-12 left-6">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-lg border-4 border-[var(--color-surface)] overflow-hidden bg-[var(--color-surface)] shadow-md">
-                <img
-                  id="profileImage"
-                  src={subscriber.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(subscriber.firstname || 'User')}&background=0077B6&color=fff&size=96`}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = `https://ui-avatars.com/api/?name=User&background=0077B6&color=fff&size=96`;
-                  }}
-                />
-              </div>
-              {/* Upload overlay - clean hover state */}
-              <label
-                htmlFor="profilePicUpload"
-                className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 hover:opacity-100 transition-all duration-150 cursor-pointer"
-              >
-                <input
-                  type="file"
-                  id="profilePicUpload"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-                <Upload className="text-white" size={20} />
-              </label>
-            </div>
-          </div>
-        </div>
-        
-        {/* Profile Info Section - Clean layout */}
-        <div className="pt-16 px-6 pb-6">
-          {/* User name and join date - left aligned, professional */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">
-              {subscriber.firstname} {subscriber.surname}
-            </h1>
-            <p className="text-sm text-[var(--color-text-secondary)] flex items-center gap-1.5">
-              <Calendar size={14} />
-              <span>
-                Member since {subscriber.createdAt
-                  ? new Date(subscriber.createdAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long'
-                    })
-                  : 'N/A'}
-              </span>
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Profile Form Card - Clean & Organized */}
-      <Card variant="elevated" padding="lg" className="mb-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Render each section with clean spacing */}
-          {formSections.map((section, sectionIndex) => (
-            <div key={sectionIndex} className="space-y-4">
-              {/* Section Title - Professional with subtle border */}
-              <h2 className="text-base font-semibold text-[var(--color-text-primary)] pb-2 border-b border-[var(--color-border)]">
-                {section.title}
-              </h2>
-              
-              {/* Section Fields - Grid layout for better organization */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {section.fields.map(({ name, icon, label, type, required, options, disabled }) => {
-                  // Handle select dropdowns for location fields
-                  if (type === 'select') {
-                    let selectOptions = [];
-                    let isDisabled = disabled || false;
-                    
-                    if (options === 'countries') {
-                      selectOptions = countriesData?.data || [];
-                    } else if (options === 'states') {
-                      selectOptions = statesData?.data || [];
-                      isDisabled = isDisabled || !selectedCountry;
-                    } else if (options === 'lgas') {
-                      selectOptions = lgasData?.data || [];
-                      isDisabled = isDisabled || !selectedState;
-                    }
-                    
-                    return (
-                      <div key={name}>
-                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                          {label} {required && <span className="text-red-500">*</span>}
-                        </label>
-                        <select
-                          {...register(name)}
-                          disabled={isDisabled}
-                          onChange={(e) => {
-                            setValue(name, e.target.value);
-                            if (name === 'country') {
-                              setSelectedCountry(e.target.value);
-                              setValue('state', '');
-                              setValue('lga', '');
-                              setSelectedState('');
-                            } else if (name === 'state') {
-                              setSelectedState(e.target.value);
-                              setValue('lga', '');
-                            }
-                          }}
-                          className="w-full px-4 py-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/10 focus:border-[var(--color-primary)] outline-none transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="">Select {label}</option>
-                          {selectOptions.map((option, index) => {
-                            // Handle both string and object formats
-                            const optionValue = typeof option === 'string' ? option : option.name;
-                            const optionKey = typeof option === 'string' ? option : option.code || option.name;
-                            return (
-                              <option key={`${name}-${optionKey}-${index}`} value={optionValue}>
-                                {optionValue}
-                              </option>
-                            );
-                          })}
-                        </select>
-                        {errors[name] && (
-                          <p className="text-sm text-red-500 mt-1">{errors[name]?.message}</p>
-                        )}
-                      </div>
-                    );
-                  }
-                  
-                  // Regular input fields
-                  return (
-                    <Input
-                      key={name}
-                      label={label}
-                      type={type}
-                      icon={icon}
-                      required={required}
-                      disabled={disabled}
-                      error={errors[name]?.message}
-                      placeholder={label}
-                      {...register(name)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          
-          {/* Save Button - Professional styling */}
-          <div className="pt-2">
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              fullWidth
-              loading={mutation.isPending}
-              loadingText="Saving..."
-              icon={<Save size={20} />}
+    <>
+      <motion.section
+        className="max-w-5xl mx-auto p-4 sm:p-6 w-full space-y-5"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15 }}
+      >
+        <div className="lg:hidden space-y-4">
+          <div className="relative flex items-center justify-center py-2">
+            <h1 className="text-3xl font-semibold text-[var(--color-text-primary)]">Settings</h1>
+            <button
+              type="button"
+              aria-label="Help"
+              className="absolute right-0 w-11 h-11 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-center"
             >
-              Save Changes
-            </Button>
+              <CircleHelp size={22} className="text-[var(--color-text-primary)]" />
+            </button>
           </div>
-        </form>
-      </Card>
 
-      {/* Settings Cards - Organized into separate cards */}
-      <div className="space-y-4">
-        {/* Account Security Card */}
-        <Card variant="elevated" padding="lg">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-              <Shield className="text-[var(--color-primary)]" size={18} />
-            </div>
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Account Security</h2>
-          </div>
-          <div className="space-y-4">
-            <Toggle
-              checked={twoFactorEnabled}
-              onChange={(value) => updateSetting('twoFactorEnabled', value)}
-              label="Two-Factor Authentication"
-              description="Add an extra layer of security to your account"
-            />
-            <Toggle
-              checked={biometricEnabled}
-              onChange={(value) => updateSetting('biometricEnabled', value)}
-              label="Biometric Login"
-              description="Use fingerprint or face recognition to sign in"
-            />
-            <Toggle
-              checked={sessionTimeout}
-              onChange={(value) => updateSetting('sessionTimeout', value)}
-              label="Auto Sign Out"
-              description="Automatically sign out after 30 minutes of inactivity"
-            />
-            <Toggle
-              checked={loginNotifications}
-              onChange={(value) => updateSetting('loginNotifications', value)}
-              label="Login Notifications"
-              description="Get notified when someone signs into your account"
-            />
-          </div>
-        </Card>
-
-        {/* Preferences Card */}
-        <Card variant="elevated" padding="lg">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-              <Settings className="text-[var(--color-primary)]" size={18} />
-            </div>
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Preferences</h2>
-          </div>
-          <div className="space-y-4">
-            {/* Theme Toggle - Clean button design */}
-            <div className="flex items-center justify-between py-2">
-              <div className="flex-1">
-                <label className="text-sm font-medium text-[var(--color-text-primary)] block">
-                  Theme
-                </label>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Choose between light and dark mode
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition-all duration-150"
-              >
-                {theme === 'light' ? (
-                  <>
-                    <Moon size={16} className="text-[var(--color-text-primary)]" />
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">Dark</span>
-                  </>
+          <Card variant="elevated" padding="none" className="rounded-2xl overflow-hidden">
+            <div className="w-full p-4 flex items-center gap-3 text-left">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-text-primary)] text-[var(--color-surface)] flex items-center justify-center text-lg font-semibold shrink-0 overflow-hidden">
+                {profile.profileImage ? (
+                  <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <>
-                    <Sun size={16} className="text-[var(--color-text-primary)]" />
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">Light</span>
-                  </>
+                  profile.initials
                 )}
-              </button>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xl font-semibold text-[var(--color-text-primary)]">{profile.fullName}</p>
+                <p className="text-sm mt-1 text-[var(--color-text-secondary)] break-all">{profile.email}</p>
+                <p className="text-xs mt-1 text-[var(--color-text-tertiary)]">Member ID: {profile.memberId}</p>
+              </div>
+              <ChevronRight className="text-[var(--color-text-tertiary)] shrink-0" size={22} />
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Notifications Card */}
-        <Card variant="elevated" padding="lg">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center">
-              <Bell className="text-[var(--color-primary)]" size={18} />
-            </div>
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Notifications</h2>
-          </div>
-          <div className="space-y-4">
-            <Toggle
-              checked={emailNotifications}
-              onChange={(value) => updateSetting('emailNotifications', value)}
-              label="Email Notifications"
-              description="Receive updates and alerts via email"
-            />
-            <Toggle
-              checked={pushNotifications}
-              onChange={(value) => updateSetting('pushNotifications', value)}
-              label="Push Notifications"
-              description="Get real-time notifications on your device"
-            />
-            <Toggle
-              checked={smsNotifications}
-              onChange={(value) => updateSetting('smsNotifications', value)}
-              label="SMS Notifications"
-              description="Receive important alerts via text message"
-            />
-            <Toggle
-              checked={transactionAlerts}
-              onChange={(value) => updateSetting('transactionAlerts', value)}
-              label="Transaction Alerts"
-              description="Get notified about all account transactions"
-            />
-            <Toggle
-              checked={securityAlerts}
-              onChange={(value) => updateSetting('securityAlerts', value)}
-              label="Security Alerts"
-              description="Receive alerts about security-related activities"
-            />
-            <Toggle
-              checked={marketingEmails}
-              onChange={(value) => updateSetting('marketingEmails', value)}
-              label="Marketing Emails"
-              description="Receive promotional offers and updates"
-            />
-          </div>
-        </Card>
-
-        {/* Sign Out Card */}
-        <Card variant="elevated" padding="lg">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-              <Lock className="text-red-600" size={18} />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Sign Out</h2>
-              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                Sign out from your account on this device
-              </p>
-            </div>
-          </div>
           <Button
-            variant="danger"
+            variant="secondary"
             size="md"
             fullWidth
-            icon={<LogOut size={18} />}
-            onClick={handleSignOut}
+            icon={<Edit3 size={18} />}
+            onClick={() => setIsEditProfileOpen(true)}
           >
+            Edit profile
+          </Button>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="w-full rounded-2xl border border-[var(--color-primary)]/35 bg-gradient-to-r from-[var(--color-primary-light)] via-[var(--color-surface)] to-[var(--color-primary-light)] p-4 flex items-center gap-3 text-left"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[var(--color-primary)]/15 text-[var(--color-primary)] flex items-center justify-center shrink-0">
+              {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-semibold text-[var(--color-text-primary)]">Appearance</p>
+              <p className="text-sm mt-1 text-[var(--color-text-secondary)]">
+                Tap to switch to {theme === "light" ? "Dark" : "Light"} mode
+              </p>
+            </div>
+            <ChevronRight className="text-[var(--color-primary)] shrink-0" size={22} />
+          </button>
+
+          <div>
+            <h2 className="text-2xl font-medium text-[var(--color-text-secondary)] mb-2">Security</h2>
+            <Card variant="elevated" padding="none" className="rounded-2xl overflow-hidden">
+              <MobileRow
+                icon={Shield}
+                title="Two-factor authentication"
+                subtitle={twoFactorEnabled ? "Enabled" : "Disabled"}
+                onClick={() => updateSetting("twoFactorEnabled", !twoFactorEnabled)}
+              />
+              <MobileRow
+                icon={Bell}
+                title="Tips for your account"
+                subtitle={loginNotifications ? "Notifications on" : "Notifications off"}
+                onClick={() => updateSetting("loginNotifications", !loginNotifications)}
+              />
+              <MobileRow
+                icon={EyeOff}
+                title="Hide balance by default"
+                withBorder={false}
+                rightNode={
+                  <Switch
+                    checked={Boolean(hideBalanceByDefault)}
+                    onClick={() => updateSetting("hideBalanceByDefault", !hideBalanceByDefault)}
+                    label="Hide balance by default"
+                  />
+                }
+                onClick={() => updateSetting("hideBalanceByDefault", !hideBalanceByDefault)}
+              />
+            </Card>
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-medium text-[var(--color-text-secondary)] mb-2">Finances</h2>
+            <Card variant="elevated" padding="none" className="rounded-2xl overflow-hidden">
+              <MobileRow
+                icon={Coins}
+                title="Wallet balance"
+                badge={hideBalanceByDefault ? "*****" : formatNaira(profile.walletBalance)}
+                onClick={() => {}}
+              />
+              <MobileRow
+                icon={Megaphone}
+                title="Referral Program"
+                subtitle={profile.referral ? `Code: ${profile.referral}` : "Invite members and receive referral rewards"}
+                onClick={() => {}}
+              />
+              <MobileRow
+                icon={ReceiptText}
+                title="Transaction alerts"
+                subtitle={transactionAlerts ? "Active" : "Disabled"}
+                onClick={() => updateSetting("transactionAlerts", !transactionAlerts)}
+              />
+              <MobileRow
+                icon={Settings}
+                title="Deals for you"
+                subtitle={marketingEmails ? "Active" : "Disabled"}
+                withBorder={false}
+                onClick={() => updateSetting("marketingEmails", !marketingEmails)}
+              />
+            </Card>
+          </div>
+
+          <Button variant="danger" size="md" fullWidth icon={<LogOut size={18} />} onClick={handleSignOut}>
             Sign Out
           </Button>
-        </Card>
-      </div>
-    </motion.section>
+        </div>
+
+        <div className="hidden lg:grid grid-cols-12 gap-6">
+          <div className="col-span-12 xl:col-span-4 space-y-4">
+            <Card variant="elevated" padding="lg">
+              <div className="w-20 h-20 rounded-2xl bg-[var(--color-text-primary)] text-[var(--color-surface)] flex items-center justify-center text-2xl font-semibold overflow-hidden mb-4">
+                {profile.profileImage ? (
+                  <img src={profile.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  profile.initials
+                )}
+              </div>
+              <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">{profile.fullName}</h2>
+              <p className="text-sm text-[var(--color-text-secondary)] break-all mt-1">{profile.email}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-1">Member ID: {profile.memberId}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-2">Member since {profile.memberSince}</p>
+              <div className="mt-4">
+                <Button variant="secondary" size="sm" fullWidth icon={<Edit3 size={16} />} onClick={() => setIsEditProfileOpen(true)}>
+                  Edit profile
+                </Button>
+              </div>
+            </Card>
+
+            <Card variant="elevated" padding="lg" className="bg-gradient-to-br from-[var(--color-primary-light)] to-[var(--color-surface)] border-[var(--color-primary)]/30">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">Appearance</p>
+                  <p className="text-lg font-semibold text-[var(--color-text-primary)] mt-1">{theme === "light" ? "Light Mode" : "Dark Mode"}</p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={toggleTheme} icon={theme === "light" ? <Moon size={16} /> : <Sun size={16} />}>
+                  Switch
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          <div className="col-span-12 xl:col-span-8 space-y-4">
+            <Card variant="elevated" padding="lg">
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Security</h3>
+              <div className="space-y-3">
+                <MobileRow icon={Shield} title="Two-factor authentication" subtitle={twoFactorEnabled ? "Enabled" : "Disabled"} onClick={() => updateSetting("twoFactorEnabled", !twoFactorEnabled)} />
+                <MobileRow icon={Bell} title="Tips for your account" subtitle={securityAlerts ? "Alerts enabled" : "Alerts disabled"} onClick={() => updateSetting("securityAlerts", !securityAlerts)} />
+                <MobileRow icon={EyeOff} title="Hide balance by default" withBorder={false} rightNode={<Switch checked={Boolean(hideBalanceByDefault)} onClick={() => updateSetting("hideBalanceByDefault", !hideBalanceByDefault)} label="Hide balance by default" />} onClick={() => updateSetting("hideBalanceByDefault", !hideBalanceByDefault)} />
+              </div>
+            </Card>
+
+            <Card variant="elevated" padding="lg">
+              <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Finances</h3>
+              <div className="space-y-3">
+                <MobileRow icon={Wallet} title="Wallet balance" subtitle={hideBalanceByDefault ? "*****" : formatNaira(profile.walletBalance)} onClick={() => {}} />
+                <MobileRow icon={Coins} title="ICA balance" subtitle={hideBalanceByDefault ? "*****" : formatNaira(profile.icaBalance)} onClick={() => {}} />
+                <MobileRow icon={Coins} title="Piggy balance" subtitle={hideBalanceByDefault ? "*****" : formatNaira(profile.piggyBalance)} onClick={() => {}} />
+                <MobileRow
+                  icon={Megaphone}
+                  title="Referral Program"
+                  subtitle={profile.referral ? `Code: ${profile.referral}` : "Invite members and receive referral rewards"}
+                  withBorder={false}
+                  onClick={() => {}}
+                />
+              </div>
+            </Card>
+
+            <Button variant="danger" size="md" fullWidth icon={<LogOut size={18} />} onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </motion.section>
+
+      <AnimatePresence>
+        {isEditProfileOpen && (
+          <motion.div
+            className="fixed inset-0 z-[80] bg-black/45 p-4 sm:p-6 overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="mx-auto w-full max-w-3xl rounded-3xl border border-[var(--color-border)] bg-[var(--color-background)] shadow-2xl"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--color-border)] p-4 sm:p-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-secondary)]">Hidden screen</p>
+                  <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">Edit profile</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileOpen(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                  aria-label="Close edit profile"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+                <EditField
+                  label="First name"
+                  name="firstname"
+                  value={editForm.firstname}
+                  onChange={handleEditChange}
+                  placeholder="Enter first name"
+                />
+                <EditField
+                  label="Surname"
+                  name="surname"
+                  value={editForm.surname}
+                  onChange={handleEditChange}
+                  placeholder="Enter surname"
+                />
+                <EditField
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={handleEditChange}
+                  placeholder="Enter email"
+                />
+                <EditField
+                  label="Mobile"
+                  name="mobile"
+                  value={editForm.mobile}
+                  onChange={handleEditChange}
+                  placeholder="Enter mobile number"
+                />
+                <EditField
+                  label="City"
+                  name="city"
+                  value={editForm.city}
+                  onChange={handleEditChange}
+                  placeholder="Enter city"
+                />
+                <EditField
+                  label="State"
+                  name="state"
+                  value={editForm.state}
+                  onChange={handleEditChange}
+                  placeholder="Enter state"
+                />
+                <EditField
+                  label="LGA"
+                  name="lga"
+                  value={editForm.lga}
+                  onChange={handleEditChange}
+                  placeholder="Enter LGA"
+                />
+                <EditField
+                  label="Country"
+                  name="country"
+                  value={editForm.country}
+                  onChange={handleEditChange}
+                  placeholder="Enter country"
+                />
+                <EditField
+                  label="Address"
+                  name="address1"
+                  value={editForm.address1}
+                  onChange={handleEditChange}
+                  placeholder="Enter address"
+                  fullWidth
+                />
+
+                <div className="sm:col-span-2 flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setIsEditProfileOpen(false)}
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    loading={updateProfileMutation.isPending}
+                    loadingText="Saving..."
+                    icon={<Save size={16} />}
+                  >
+                    Save changes
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

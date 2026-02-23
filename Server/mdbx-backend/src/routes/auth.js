@@ -97,6 +97,13 @@ router.post('/register', registerLimiter, registerValidation, async (req, res) =
         [firstname, othername, address1, country, state, dobFormatted, mobile, alternatePhone, currency, referral, referralPhone, nextOfKinName, nextOfKinContact, surname, city, gender, password ? await bcrypt.hash(password, 10) : null, lga, joinEsusu]
       );
       const subscriberId = subscriberResult.insertId;
+      await pool.query(
+        `INSERT INTO subscriber_balance
+         (subscriber_id, mtd_contributed, ytd_contributed, available_balance,
+          mtd_wallets, mtd_wallets_copy1, mtd_esusu, ytd_esusu, mtd_purchases, ytd_purchases)
+         VALUES (?, 0, 0, 0, 0, 0, 0, 0, 0, 0)`,
+        [subscriberId]
+      );
       console.log('✅ Step 2 complete: Subscriber created with ID:', subscriberId);
       
       // 3. Create user and link to subscriber

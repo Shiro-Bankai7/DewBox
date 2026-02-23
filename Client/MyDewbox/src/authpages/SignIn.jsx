@@ -82,6 +82,13 @@ const SignIn = () => {
         <AuthCarousel />
       </div>
 
+      {/* Mobile Carousel Preview */}
+      <div className="md:hidden px-4 pt-4">
+        <div className="h-[232px] rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <AuthCarousel compact />
+        </div>
+      </div>
+
       {/* Right side - Sign In Form */}
       <div className='min-h-screen md:absolute md:right-0 md:w-1/2 flex items-center justify-center p-4 md:p-8 bg-gray-50'>
         <motion.div

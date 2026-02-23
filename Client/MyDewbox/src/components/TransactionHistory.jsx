@@ -28,6 +28,28 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
         dateRange: "all"
     });
 
+    const getTransactionTypeLabel = (type) => {
+        const typeUpper = String(type || "").toUpperCase();
+        switch (typeUpper) {
+            case "FEE":
+                return "Subscription Fee";
+            case "CONTRIBUTION":
+                return "Contribution";
+            case "DEPOSIT":
+                return "Deposit";
+            case "WITHDRAWAL":
+                return "Withdrawal";
+            case "TRANSFER":
+                return "Bank Transfer";
+            case "WALLET_TRANSFER_SENT":
+                return "Wallet Transfer";
+            case "WALLET_TRANSFER_RECEIVED":
+                return "Wallet Credit";
+            default:
+                return typeUpper || "Transaction";
+        }
+    };
+
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
         if (!transactions || transactions.length === 0) return {};
@@ -38,6 +60,7 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
             const matchesSearch = searchQuery === "" || 
                 transaction.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 transaction.recipientEmail?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                getTransactionTypeLabel(transaction.type).toLowerCase().includes(searchQuery.toLowerCase()) ||
                 transaction.amount?.toString().includes(searchQuery);
 
             // Type filter
@@ -107,6 +130,8 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
             case "CONTRIBUTION":
             case "DEPOSIT":
                 return <ArrowDownLeft className="text-[#059669]" size={20} />;
+            case "FEE":
+                return <AlertCircle className="text-[#d97706]" size={20} />;
             case "WITHDRAWAL":
             case "TRANSFER":
                 return <ArrowUpRight className="text-[#dc2626]" size={20} />;
@@ -153,6 +178,8 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
             case "CONTRIBUTION":
             case "DEPOSIT":
                 return "text-[#059669]";
+            case "FEE":
+                return "text-[#d97706]";
             case "WITHDRAWAL":
             case "TRANSFER":
                 return "text-[#dc2626]";
@@ -267,6 +294,7 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
                                         <option value="all">All Types</option>
                                         <option value="CONTRIBUTION">Contribution</option>
                                         <option value="DEPOSIT">Deposit</option>
+                                        <option value="FEE">Subscription Fee</option>
                                         <option value="WITHDRAWAL">Withdrawal</option>
                                         <option value="TRANSFER">Transfer</option>
                                     </select>
@@ -381,7 +409,7 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
                                                 {/* Transaction Info */}
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-gray-900 truncate">
-                                                        {transaction.description || transaction.type?.toUpperCase()}
+                                                        {transaction.description || getTransactionTypeLabel(transaction.type)}
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <p className="text-sm text-gray-500">
@@ -430,7 +458,7 @@ const TransactionHistory = ({ transactions = [], isLoading = false }) => {
                                                             <div>
                                                                 <p className="text-gray-500">Type</p>
                                                                 <p className="font-medium text-gray-900">
-                                                                    {transaction.type?.toUpperCase()}
+                                                                    {getTransactionTypeLabel(transaction.type)}
                                                                 </p>
                                                             </div>
                                                             {transaction.recipientEmail && (

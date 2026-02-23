@@ -96,7 +96,6 @@ export const apiService = {
   },
   createTransaction: async (data: any) => {
     const response = await api.post('/users/transactions', data);
-    console.log('Create transaction response:', response.data);
     return response.data;
   },
   verifyTransaction: async (reference: string) => {
@@ -117,6 +116,10 @@ export const apiService = {
   },
   getContributionHistory: async () => {
     const response = await api.get('/contributions/history');
+    return response.data;
+  },
+  withdrawPiggyToWallet: async (amount: number) => {
+    const response = await api.post('/contributions/piggy/withdraw', { amount });
     return response.data;
   },
   updateContributionMode: async (mode: string) => {

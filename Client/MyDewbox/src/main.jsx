@@ -13,8 +13,16 @@ setupAxios(axios);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403 || status === 404 || status === 429) {
+          return false;
+        }
+        return failureCount < 1;
+      },
       refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      staleTime: 30 * 1000,
     },
   },
 });

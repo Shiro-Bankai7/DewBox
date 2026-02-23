@@ -31,7 +31,12 @@ export const userStore = create(
     }),
     {
       name: "user-storage",
-      getStorage: () => localStorage
+      getStorage: () => localStorage,
+      // Privacy-by-design: avoid persisting transient OTP values in browser storage.
+      partialize: (state) => ({
+        phone: state.phone,
+        isVerified: state.isVerified,
+      }),
     }
   )
 );

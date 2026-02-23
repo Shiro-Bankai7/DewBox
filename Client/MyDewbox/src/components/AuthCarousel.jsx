@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, TrendingUp, Wallet, User, PiggyBank, Target, Award, Calendar, ArrowRight, Bell } from 'lucide-react';
+import { Home, TrendingUp, Wallet, User, PiggyBank, Target, Calendar, ArrowRight, Bell } from 'lucide-react';
 
 /**
- * AuthCarousel - iPhone 16 mockup cycling through actual app screens
+ * AuthCarousel - iPhone 15 style mockup cycling through app screens
  */
-const AuthCarousel = () => {
+const AuthCarousel = ({ compact = false }) => {
   const [currentScene, setCurrentScene] = useState(0);
+  const phoneWidth = compact ? '128px' : '232px';
 
   // Define app screens to cycle through
   const scenes = [
@@ -14,7 +15,7 @@ const AuthCarousel = () => {
       id: 'home',
       title: 'Home Dashboard',
       screen: (
-        <div className="h-full bg-gray-50 overflow-hidden pb-16">
+        <div className="relative h-full bg-gray-50 overflow-hidden pb-16">
           {/* Status Bar */}
           <div className="bg-white px-3 pt-2 pb-1.5 flex items-center justify-between">
             <span className="text-[7px] font-semibold text-gray-900">9:41</span>
@@ -31,7 +32,7 @@ const AuthCarousel = () => {
           {/* App Header */}
           <div className="bg-white px-3 pb-2">
             <h1 className="text-[9px] font-bold text-gray-900">Welcome back, John! 👋</h1>
-            <p className="text-[6px] text-gray-500">3 months contribution streak! 🔥</p>
+            <p className="text-[6px] text-gray-500">Your contribution overview is ready.</p>
           </div>
 
           {/* Content */}
@@ -143,33 +144,19 @@ const AuthCarousel = () => {
               </div>
             </motion.div>
 
-            {/* Streak Card with glassmorphism */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.5 }}
-              className="relative rounded-lg p-2 text-white shadow-sm overflow-hidden"
-              style={{
-                background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.95), rgba(239, 68, 68, 0.95))',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.18)'
-              }}
+              className="rounded-lg border border-blue-200 bg-blue-50 p-2"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-              <div className="relative z-10 flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-md bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-                  <Award className="text-white" size={11} />
-                </div>
-                <div>
-                  <div className="text-[6px] opacity-80">Contribution Streak</div>
-                  <div className="text-[10px] font-bold">3 Months</div>
-                </div>
-              </div>
+              <div className="text-[6px] text-blue-700">Monthly summary</div>
+              <div className="text-[9px] font-bold text-gray-900">Contributions are on track</div>
             </motion.div>
           </div>
 
           {/* Bottom Navigation */}
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-1.5">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-1.5">
             <div className="flex items-center justify-around">
               <div className="flex flex-col items-center gap-0.5">
                 <Home size={11} className="text-blue-600" />
@@ -196,7 +183,7 @@ const AuthCarousel = () => {
       id: 'contribute',
       title: 'Contribute',
       screen: (
-        <div className="h-full bg-gray-50 overflow-hidden pb-16">
+        <div className="relative h-full bg-gray-50 overflow-hidden pb-16">
           <div className="bg-white px-3 pt-2 pb-1.5 flex items-center justify-between">
             <span className="text-[7px] font-semibold text-gray-900">9:41</span>
             <div className="flex items-center gap-0.5">
@@ -276,7 +263,7 @@ const AuthCarousel = () => {
             </motion.div>
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-1.5">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-3 py-1.5">
             <div className="flex items-center justify-around">
               <div className="flex flex-col items-center gap-0.5">
                 <Home size={11} className="text-gray-400" />
@@ -303,7 +290,7 @@ const AuthCarousel = () => {
       id: 'wallet',
       title: 'Wallet',
       screen: (
-        <div className="h-full bg-gray-50 overflow-hidden pb-16">
+        <div className="relative h-full bg-gray-50 overflow-hidden pb-16">
           <div className="bg-white px-4 pt-3 pb-2 flex items-center justify-between">
             <span className="text-[8px] font-semibold text-gray-900">9:41</span>
             <div className="flex items-center gap-1">
@@ -371,7 +358,7 @@ const AuthCarousel = () => {
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
             <div className="flex items-center justify-around">
               <div className="flex flex-col items-center gap-0.5">
                 <Home size={14} className="text-gray-400" />
@@ -405,57 +392,48 @@ const AuthCarousel = () => {
   }, [scenes.length]);
 
   return (
-    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 overflow-hidden">
-      <div className="relative">
-        {/* Simple shadow */}
-        <div className="absolute inset-0 bg-slate-900/10 blur-3xl scale-95 rounded-[3rem]"></div>
-        
-        {/* Professional phone mockup */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="relative rounded-[3rem] shadow-2xl" 
-          style={{ 
-            width: '280px', 
-            height: '560px',
-            background: '#1a1a1a'
-          }}
-        >
-          {/* Simple top notch - no dynamic island */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-3xl z-20"></div>
-          
-          {/* Screen */}
-          <div className="absolute inset-[3px] bg-white rounded-[2.8rem] overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentScene}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="h-full"
-              >
-                {scenes[currentScene].screen}
-              </motion.div>
-            </AnimatePresence>
+    <div className="h-full w-full flex items-center justify-center bg-slate-100 overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.45 }}
+        className={`relative border border-slate-500 bg-[#171b22] shadow-[0_20px_42px_rgba(15,23,42,0.3)] ${compact ? 'rounded-[2rem] p-[4px]' : 'rounded-[2.8rem] p-[6px]'}`}
+        style={{ width: phoneWidth, aspectRatio: "9 / 19.5" }}
+      >
+        <div className="absolute -left-[3px] top-[22%] h-10 w-[3px] rounded-r-md bg-slate-400" />
+        <div className="absolute -right-[3px] top-[20%] h-12 w-[3px] rounded-l-md bg-slate-400" />
+        <div className="absolute -right-[3px] top-[33%] h-9 w-[3px] rounded-l-md bg-slate-400" />
 
-            {/* Simple progress dots */}
-            <div className="absolute bottom-24 left-0 right-0 flex justify-center gap-2 z-30">
-              {scenes.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    i === currentScene 
-                      ? 'w-6 bg-blue-600' 
-                      : 'w-2 bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
+        <div className={`absolute left-1/2 -translate-x-1/2 bg-black z-20 flex items-center justify-center ${compact ? 'top-1.5 h-4 w-14 rounded-full' : 'top-2.5 h-5 w-20 rounded-full'}`}>
+          <div className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+        </div>
+
+        <div className={`relative h-full bg-white overflow-hidden border border-slate-300 ${compact ? 'rounded-[1.75rem]' : 'rounded-[2.35rem]'}`}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentScene}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="h-full"
+            >
+              {scenes[currentScene].screen}
+            </motion.div>
+          </AnimatePresence>
+
+          <div className={`absolute left-0 right-0 flex justify-center gap-2 z-30 ${compact ? 'bottom-14' : 'bottom-20'}`}>
+            {scenes.map((_, i) => (
+              <div
+                key={i}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  i === currentScene ? 'w-6 bg-blue-600' : 'w-2 bg-gray-300'
+                }`}
+              />
+            ))}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

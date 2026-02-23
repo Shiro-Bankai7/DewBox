@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import PaystackPop from "@paystack/inline-js";
-import { Wallet, Building2, ArrowLeftRight, Send, ArrowLeft, CheckCircle2, History } from "lucide-react";
+import { Wallet, Building2, ArrowLeftRight, Send, ArrowLeft, CheckCircle2, Download, ChevronRight } from "lucide-react";
 import apiService from "../services/api";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
@@ -15,6 +15,7 @@ import Card from "../components/ui/Card";
 import Modal from "../components/ui/Modal";
 import Skeleton, { SkeletonCard } from "../components/ui/Skeleton";
 import TransactionHistory from "../components/TransactionHistory";
+import { downloadReceipt } from "../utils/receipt";
 
 // Validation schemas for different transaction types
 const depositSchema = yup.object().shape({
@@ -53,7 +54,7 @@ const transferSchema = yup.object().shape({
 });
 
 const walletSchema = yup.object().shape({
-    email: yup.string().email("Invalid email format").required("Recipient email is required"),
+    walletId: yup.string().trim().required("Recipient wallet ID is required"),
     amount: yup.number()
         .typeError("Amount must be a number")
         .positive("Amount must be greater than 0")
@@ -64,23 +65,26 @@ const walletSchema = yup.object().shape({
         .required("Password is required for security"),
 });
 
-const TransactionOption = ({ type, icon: Icon, label, color, onClick, isActive }) => (
-    <motion.button
+const TransactionOption = ({ icon: Icon, label, subtitle, color, onClick, isActive, withBorder }) => (
+    <button
         type="button"
-        className={`p-4 rounded-lg cursor-pointer bg-[var(--color-surface)] border transition-all duration-150 text-left w-full ${
-            isActive ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/10 shadow-sm' : 'border-[var(--color-border)] hover:border-[var(--color-primary)] hover:shadow-sm'
-        }`}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
         onClick={onClick}
+        className={`w-full flex items-center gap-3 px-4 py-4 text-left transition-colors ${
+            withBorder ? "border-b border-[var(--color-border)]" : ""
+        } ${isActive ? "bg-[var(--color-primary-light)]" : "bg-transparent hover:bg-[var(--color-surface-elevated)]"}`}
     >
-        <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0`} style={{ backgroundColor: `${color}10` }}>
-                <Icon style={{ color }} size={20} strokeWidth={2} />
-            </div>
-            <span className="font-medium text-[var(--color-text-primary)] text-sm">{label}</span>
+        <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${color}10` }}
+        >
+            <Icon style={{ color }} size={20} strokeWidth={2} />
         </div>
-    </motion.button>
+        <div className="flex-1 min-w-0">
+            <p className="text-base font-medium leading-tight text-[var(--color-text-primary)]">{label}</p>
+            <p className="text-xs mt-0.5 text-[var(--color-text-secondary)]">{subtitle}</p>
+        </div>
+        <ChevronRight className="text-[var(--color-text-tertiary)] shrink-0" size={20} />
+    </button>
 );
 
 const TransactionsSkeleton = () => (
@@ -116,6 +120,7 @@ const transactionOptions = [
         type: 'deposit', 
         icon: Wallet, 
         label: 'Fund Wallet',
+        subtitle: 'Add money securely with card, bank, or transfer',
         title: 'Fund Wallet',
         color: '#0077B6'
     },
@@ -124,6 +129,7 @@ const transactionOptions = [
         type: 'withdraw', 
         icon: Building2, 
         label: 'Withdraw',
+        subtitle: 'Move funds from your wallet to your bank account',
         title: 'Withdraw Funds',
         color: '#059669'
     },
@@ -132,6 +138,7 @@ const transactionOptions = [
         type: 'transfer', 
         icon: ArrowLeftRight, 
         label: 'Pay to Bank',
+        subtitle: 'Send funds directly to a bank account',
         title: 'Pay to Bank Account',
         color: '#8b5cf6'
     },
@@ -140,6 +147,7 @@ const transactionOptions = [
         type: 'wallet', 
         icon: Send, 
         label: 'Send to User',
+        subtitle: 'Transfer wallet funds to another member by wallet ID',
         title: 'Send to User',
         color: '#f59e0b'
     }
@@ -154,8 +162,21 @@ const Transactions = () => {
     const [showHistory, setShowHistory] = useState(false);
     const [accountName, setAccountName] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
+    const [latestReceipt, setLatestReceipt] = useState(null);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+
+    const activeTransactionMeta = transactionOptions.find((item) => item.id === activeTransaction);
+
+    const closeActionModal = () => {
+        setActiveTransaction(null);
+        setShowConfirmModal(false);
+        setShowSuccessScreen(false);
+        setSuccessData(null);
+        setConfirmData(null);
+        setAccountName('');
+        reset();
+    };
 
     // Handle URL parameters to auto-select transaction type
     useEffect(() => {
@@ -169,12 +190,11 @@ const Transactions = () => {
 
 
     // Fetch transaction history
-    const { data: transactionsData, isLoading: isLoadingTransactions, error: transactionsError } = useQuery({
+    const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
         queryKey: ['transactions'],
         queryFn: () => apiService.getTransactions(),
         retry: 1,
         onError: (error) => {
-            console.error('Failed to fetch transactions:', error);
             if (error.response?.status === 401) {
                 toast.error('Session expired. Please login again.');
             }
@@ -213,11 +233,16 @@ const Transactions = () => {
     const watchedAccount = watch('account');
 
     useEffect(() => {
-        if (watchedBank && watchedAccount && watchedAccount.length === 10) {
-            autoVerifyAccount(watchedAccount, watchedBank);
-        } else {
+        if (!(watchedBank && watchedAccount && watchedAccount.length === 10)) {
             setAccountName('');
+            return;
         }
+
+        const timeoutId = setTimeout(() => {
+            autoVerifyAccount(watchedAccount, watchedBank);
+        }, 350);
+
+        return () => clearTimeout(timeoutId);
     }, [watchedBank, watchedAccount]);
 
     // Fetch banks using API service
@@ -232,7 +257,11 @@ const Transactions = () => {
             const data = await apiService.verifyTransaction(reference);
             
             if (data.status === 'success') {
-                toast.success(`Payment successful! ₦${data.data.amount} added to your wallet`, {
+                setLatestReceipt({
+                    receipt: data?.data?.receipt || null,
+                    verification: data?.data?.verification || null
+                });
+                toast.success(`Payment successful! NGN ${data.data.amount} added to your wallet`, {
                     autoClose: 5000,
                     position: 'top-right'
                 });
@@ -253,9 +282,23 @@ const Transactions = () => {
                 toast.error('Payment verification failed');
             }
         } catch (err) {
-            console.error('Verification error:', err);
             toast.error('Failed to verify payment');
         }
+    };
+
+    const handleDownloadLatestReceipt = () => {
+        const downloaded = downloadReceipt({
+            receipt: latestReceipt?.receipt || null,
+            verification: latestReceipt?.verification || null,
+            title: 'MyDewbox Wallet Funding Receipt'
+        });
+
+        if (downloaded) {
+            toast.success('Receipt downloaded');
+            return;
+        }
+
+        toast.error('No receipt data available yet.');
     };
 
     // If Paystack redirects back to this page (common for some payment channels),
@@ -285,7 +328,6 @@ const Transactions = () => {
             type: 'CONTRIBUTION'
         }),
         onSuccess: (response) => {
-            console.log('Deposit response:', response);
             
             const accessCode = response?.data?.access_code;
             const reference = response?.data?.reference;
@@ -295,7 +337,6 @@ const Transactions = () => {
                 const popup = new PaystackPop();
                 popup.resumeTransaction(accessCode, {
                     onSuccess: (transaction) => {
-                        console.log('Payment successful:', transaction);
                         verifyPayment(transaction.reference);
                     },
                     onCancel: () => {
@@ -303,12 +344,10 @@ const Transactions = () => {
                     }
                 });
             } else {
-                console.error('No access code in response:', response);
                 toast.error("Payment initialization failed. Please try again.");
             }
         },
         onError: (error) => {
-            console.error('Deposit error:', error);
             toast.error(error.response?.data?.message || "Failed to process deposit");
         }
     });
@@ -339,12 +378,26 @@ const Transactions = () => {
         onError: (error) => {
             const errorMessage = error.response?.data?.message || "Failed to process withdrawal";
             toast.error(errorMessage);
-            console.error('Withdrawal error:', error.response?.data);
         }
     });
 
     const transferMutation = useMutation({
         mutationFn: (data) => {
+            if (data?.isWalletTransfer) {
+                const normalizedWalletId = String(data.walletId || "")
+                    .trim()
+                    .toUpperCase()
+                    .replace(/\s+/g, "");
+                return apiService.createTransaction({
+                    type: 'WALLET',
+                    amount: data.amount,
+                    password: data.password,
+                    message: data.message,
+                    walletId: normalizedWalletId,
+                    recipientWalletId: normalizedWalletId
+                });
+            }
+
             // Get the selected bank details
             const selectedBank = banks?.data?.find(b => b.code === data.bank);
             
@@ -359,6 +412,21 @@ const Transactions = () => {
             });
         },
         onSuccess: (response, variables) => {
+            if (variables?.isWalletTransfer) {
+                toast.success(response.message || "Wallet transfer successful.");
+                queryClient.invalidateQueries(['transactions']);
+                queryClient.invalidateQueries(['subscriber']);
+                setSuccessData({
+                    walletId: response?.data?.recipientWalletId || variables?.walletId,
+                    amount: response?.data?.amount ?? variables?.amount,
+                    message: response?.data?.message ?? variables?.message,
+                    recipientName: response?.data?.recipientName
+                });
+                setShowSuccessScreen(true);
+                reset();
+                return;
+            }
+
             toast.success(response.message || "Transfer successful! Funds will be credited shortly.");
             queryClient.invalidateQueries(['transactions']);
             queryClient.invalidateQueries(['subscriber']);
@@ -369,7 +437,6 @@ const Transactions = () => {
         onError: (error) => {
             const errorMessage = error.response?.data?.message || "Failed to process transfer";
             toast.error(errorMessage);
-            console.error('Transfer error:', error.response?.data);
         }
     });
 
@@ -437,7 +504,6 @@ const Transactions = () => {
                 });
             }
         } catch (error) {
-            console.error('Auto-verify error:', error);
             const errorMessage = error.response?.data?.message || error.message;
             
             // Check if it's an API key issue
@@ -478,7 +544,7 @@ const Transactions = () => {
                 return (
                     <motion.div 
                         key="deposit-form"
-                        className="mt-6"
+                        className="pt-1"
                         {...formProps}
                     >
                         <Card variant="elevated" padding="md">
@@ -513,7 +579,7 @@ const Transactions = () => {
                                         type="button" 
                                         variant="secondary" 
                                         size="md"
-                                        onClick={() => setActiveTransaction(null)}
+                                        onClick={closeActionModal}
                                         icon={<ArrowLeft size={18} />}
                                     >
                                         Back
@@ -537,7 +603,7 @@ const Transactions = () => {
                 return (
                     <motion.div 
                         key="withdraw-form"
-                        className="mt-6"
+                        className="pt-1"
                         {...formProps}
                     >
                         <Card variant="elevated" padding="md">
@@ -613,7 +679,7 @@ const Transactions = () => {
                                         type="button" 
                                         variant="secondary" 
                                         size="md"
-                                        onClick={() => setActiveTransaction(null)}
+                                        onClick={closeActionModal}
                                         icon={<ArrowLeft size={18} />}
                                     >
                                         Back
@@ -637,7 +703,7 @@ const Transactions = () => {
                 return (
                     <motion.div 
                         key="transfer-form"
-                        className="mt-6"
+                        className="pt-1"
                         {...formProps}
                     >
                         <Card variant="elevated" padding="md">
@@ -697,7 +763,7 @@ const Transactions = () => {
                                         type="button" 
                                         variant="secondary" 
                                         size="md"
-                                        onClick={() => setActiveTransaction(null)}
+                                        onClick={closeActionModal}
                                         icon={<ArrowLeft size={18} />}
                                     >
                                         Back
@@ -722,7 +788,7 @@ const Transactions = () => {
                     return (
                         <motion.div 
                             key="success-screen"
-                            className="mt-6"
+                            className="pt-1"
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.15 }}
@@ -743,7 +809,7 @@ const Transactions = () => {
                                         <div className="bg-[var(--color-surface)] rounded-lg p-3 mb-4 space-y-2 text-left">
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-[var(--color-text-secondary)]">Recipient</span>
-                                                <span className="font-medium text-[var(--color-text-primary)]">{successData.email}</span>
+                                                <span className="font-medium text-[var(--color-text-primary)]">{successData.walletId}</span>
                                             </div>
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-[var(--color-text-secondary)]">Amount</span>
@@ -762,11 +828,7 @@ const Transactions = () => {
                                         variant="primary" 
                                         size="md"
                                         fullWidth
-                                        onClick={() => {
-                                            setShowSuccessScreen(false);
-                                            setActiveTransaction(null);
-                                            setSuccessData(null);
-                                        }}
+                                        onClick={closeActionModal}
                                     >
                                         Done
                                     </Button>
@@ -780,7 +842,7 @@ const Transactions = () => {
                     <>
                         <motion.div 
                             key="wallet-form"
-                            className="mt-6"
+                            className="pt-1"
                             {...formProps}
                         >
                             <Card variant="elevated" padding="md">
@@ -800,11 +862,11 @@ const Transactions = () => {
                                     
                                     <div className="space-y-3">
                                         <Input
-                                            type="email"
-                                            label="Recipient Email"
-                                            placeholder="user@example.com"
-                                            error={errors.email?.message}
-                                            {...register("email")}
+                                            type="text"
+                                            label="Recipient Wallet ID"
+                                            placeholder="MDBX-XXXX-XXXX-XXXX"
+                                            error={errors.walletId?.message}
+                                            {...register("walletId")}
                                         />
                                         <Input
                                             type="number"
@@ -833,7 +895,7 @@ const Transactions = () => {
                                             type="button" 
                                             variant="secondary" 
                                             size="md"
-                                            onClick={() => setActiveTransaction(null)}
+                                            onClick={closeActionModal}
                                             icon={<ArrowLeft size={18} />}
                                         >
                                             Back
@@ -866,7 +928,7 @@ const Transactions = () => {
                                     <div className="bg-[var(--color-surface)] rounded-lg p-3 space-y-2">
                                         <div className="flex justify-between text-sm">
                                             <span className="text-[var(--color-text-secondary)]">Recipient</span>
-                                            <span className="font-medium text-[var(--color-text-primary)]">{confirmData.email}</span>
+                                            <span className="font-medium text-[var(--color-text-primary)]">{confirmData.walletId}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-[var(--color-text-secondary)]">Amount:</span>
@@ -912,19 +974,24 @@ const Transactions = () => {
 
     return (
         <motion.section
-            className="max-w-3xl mx-auto p-4"
+            className="max-w-5xl mx-auto p-4 sm:p-6 w-full space-y-5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.15 }}
         >
-            {/* Header - Compact & Clean */}
-            <div className="mb-6">
-                <h1 className="text-xl font-bold text-[var(--color-text-primary)] mb-1">Wallet</h1>
-                <p className="text-sm text-[var(--color-text-secondary)]">Manage your transactions</p>
+            <div className="relative flex items-center justify-center py-1">
+                <h1 className="text-3xl font-semibold text-[var(--color-text-primary)]">Wallet</h1>
+                <button
+                    type="button"
+                    onClick={() => navigate('/dashboard')}
+                    className="absolute left-0 w-11 h-11 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-center"
+                    aria-label="Back to dashboard"
+                >
+                    <ArrowLeft size={20} className="text-[var(--color-text-primary)]" />
+                </button>
             </div>
 
-            {/* Tab Navigation - Minimalist segmented control */}
-            <div className="flex gap-1 bg-[var(--color-surface)] p-1 rounded-lg inline-flex mb-6 border border-[var(--color-border)]">
+            <div className="flex gap-1 bg-[var(--color-surface)] p-1 rounded-xl inline-flex border border-[var(--color-border)]">
                 <button
                     onClick={() => setShowHistory(false)}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
@@ -936,7 +1003,10 @@ const Transactions = () => {
                     New Transaction
                 </button>
                 <button
-                    onClick={() => setShowHistory(true)}
+                    onClick={() => {
+                        closeActionModal();
+                        setShowHistory(true);
+                    }}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
                         showHistory 
                             ? 'bg-[var(--color-surface-elevated)] text-[var(--color-text-primary)] shadow-sm' 
@@ -946,6 +1016,33 @@ const Transactions = () => {
                     History
                 </button>
             </div>
+
+            {(latestReceipt?.receipt || latestReceipt?.verification) && (
+                <Card variant="elevated" padding="md">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-sm text-[var(--color-text-secondary)]">
+                            Latest payment verified. Download your receipt.
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                icon={<Download size={16} />}
+                                onClick={handleDownloadLatestReceipt}
+                            >
+                                Download Receipt
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLatestReceipt(null)}
+                            >
+                                Dismiss
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+            )}
 
             <AnimatePresence mode="wait">
                 {showHistory ? (
@@ -969,30 +1066,42 @@ const Transactions = () => {
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.15 }}
                     >
-                        {/* Transaction Options - Compact grid */}
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 ${
-                            activeTransaction ? 'opacity-50 pointer-events-none' : ''
-                        }`}>
-                            {transactionOptions.map(({ id, type, icon, label, color }) => (
-                                <TransactionOption
-                                    key={id}
-                                    type={type}
-                                    icon={icon}
-                                    label={label}
-                                    color={color}
-                                    onClick={() => setActiveTransaction(id)}
-                                    isActive={activeTransaction === id}
-                                />
-                            ))}
+                        <div>
+                            <h2 className="text-2xl font-medium text-[var(--color-text-secondary)] mb-2">
+                                Wallet actions
+                            </h2>
+                            <Card variant="elevated" padding="none" className="rounded-2xl overflow-hidden">
+                                {transactionOptions.map(({ id, icon, label, subtitle, color }, index) => (
+                                    <TransactionOption
+                                        key={id}
+                                        icon={icon}
+                                        label={label}
+                                        subtitle={subtitle}
+                                        color={color}
+                                        onClick={() => setActiveTransaction(id)}
+                                        isActive={activeTransaction === id}
+                                        withBorder={index < transactionOptions.length - 1}
+                                    />
+                                ))}
+                            </Card>
                         </div>
-                        <AnimatePresence mode="wait">
-                            {renderActiveForm()}
-                        </AnimatePresence>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <Modal
+                isOpen={Boolean(activeTransaction)}
+                onClose={closeActionModal}
+                title={activeTransactionMeta?.title || 'Wallet Action'}
+                className="md:max-w-xl"
+            >
+                <AnimatePresence mode="wait">
+                    {renderActiveForm()}
+                </AnimatePresence>
+            </Modal>
         </motion.section>
     );
 };
 
 export default Transactions;
+

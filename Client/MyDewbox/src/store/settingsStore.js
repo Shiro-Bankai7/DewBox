@@ -16,6 +16,7 @@ export const useSettingsStore = create(
       emailNotifications: true,
       pushNotifications: true,
       smsNotifications: false,
+      hideBalanceByDefault: false,
       
       // Notification settings
       transactionAlerts: true,
@@ -32,6 +33,7 @@ export const useSettingsStore = create(
         emailNotifications: true,
         pushNotifications: true,
         smsNotifications: false,
+        hideBalanceByDefault: false,
         transactionAlerts: true,
         marketingEmails: false,
         securityAlerts: true,

@@ -116,11 +116,9 @@ const SubscribeTo = () => {
         if (response.success && response.data) {
           setCountries(response.data);
         } else {
-          console.error('Invalid response format:', response);
           toast.error('Failed to load countries. Please refresh the page.');
         }
       } catch (error) {
-        console.error('Error loading countries:', error);
         toast.error('Failed to load countries. Please refresh the page.');
         // Set fallback countries
         setCountries([
@@ -153,11 +151,8 @@ const SubscribeTo = () => {
           const response = await apiService.getStates(selectedCountry);
           if (response.success && response.data) {
             setStates(response.data);
-          } else {
-            console.warn('No states found for', selectedCountry);
           }
         } catch (error) {
-          console.error('Error loading states:', error);
           // Don't show error toast for states as they might not be available
         } finally {
           setLoadingLocations(false);
@@ -181,7 +176,6 @@ const SubscribeTo = () => {
             setCities(response.data);
           }
         } catch (error) {
-          console.error('Error loading cities:', error);
           // Cities might not be available for all states
         } finally {
           setLoadingLocations(false);
@@ -201,18 +195,12 @@ const SubscribeTo = () => {
           setLgas([]);
           setValue("lga", "");
           
-          console.log('🔍 Loading LGAs for:', selectedCountry, '-', selectedState);
           const response = await apiService.getLGAs(selectedCountry, selectedState);
-          console.log('📦 LGA API response:', response);
           
           if (response.success && response.data) {
             setLgas(response.data);
-            console.log('✅ LGAs loaded:', response.data.length, 'items');
-          } else {
-            console.warn('⚠️ No LGAs found');
           }
         } catch (error) {
-          console.error('❌ Error loading LGAs:', error);
         } finally {
           setLoadingLocations(false);
         }
@@ -245,12 +233,7 @@ const SubscribeTo = () => {
   const onSubmit = async (data) => {
     const finalData = { ...formData, ...data };
     setIsLoading(true);
-    
-    console.log('📤 Submitting registration data:', {
-      ...finalData,
-      password: '***hidden***'
-    });
-    
+
     try {
       const response = await apiService.register({
         ...finalData,
@@ -258,7 +241,6 @@ const SubscribeTo = () => {
         referralPhone: finalData.referralPhone || "",
       });
 
-      console.log('✅ Registration response:', response);
       toast.success("Registration successful!");
       
       // Auto-login after registration
@@ -270,18 +252,11 @@ const SubscribeTo = () => {
         navigate("/signin");
       }
     } catch (error) {
-      console.error('❌ Registration error:', error);
-      console.error('❌ Error response:', error.response?.data);
       
       const errorMessage = error.response?.data?.error || 
                           error.response?.data?.message || 
                           "Registration failed. Please try again.";
-      
-      // Show detailed error in development
-      if (error.response?.data?.details) {
-        console.error('❌ Error details:', error.response.data.details);
-      }
-      
+
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -673,6 +648,13 @@ const SubscribeTo = () => {
       {/* Left side - Carousel (hidden on mobile) - Fixed position */}
       <div className="hidden md:block fixed left-0 top-0 w-1/2 h-screen overflow-hidden z-10">
         <AuthCarousel />
+      </div>
+
+      {/* Mobile Carousel Preview */}
+      <div className="md:hidden px-4 pt-4">
+        <div className="h-[232px] rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <AuthCarousel compact />
+        </div>
       </div>
       
       {/* Right side - Multi-step Form */}
